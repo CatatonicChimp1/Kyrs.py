@@ -1,93 +1,58 @@
-import json
 from typing import List, Dict
-
-
-def process_data(source: str) -> List[Dict]:
-    """
-    Загружает и нормализует данные из файла.
-
-    :param source: Путь к файлу данных (JSON).
-    :return: Список словарей с нормализованными данными.
-    """
-    try:
-        with open(source, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-        # Пример нормализации: удаляем лишние пробелы, приводим текст к нижнему регистру
-        normalized_data = [
-            {key: str(value).strip().lower() for key, value in record.items()}
-            for record in data
-        ]
-        return normalized_data
-    except Exception as e:
-        raise ValueError(f"Ошибка при обработке данных: {e}")
-
-
-from collections import defaultdict
+import json
 
 
 class IndexStorage:
     """
-    Хранилище индексов для быстрого поиска.
+    Класс для хранения и управления индексами.
     """
 
     def __init__(self):
-        self.indexes = defaultdict(list)
+        self.indices = {}
 
-    def create_index(self, data: List[Dict], index_name: str) -> None:
+    def create_index(self, data: List[Dict], index_name: str):
         """
-        Создает индекс из нормализованных данных.
-
-        :param data: Список нормализованных данных.
-        :param index_name: Имя индекса.
+        Создает индекс с указанным именем и данными.
         """
-        if index_name in self.indexes:
-            raise ValueError(f"Индекс с именем '{index_name}' уже существует.")
-        for record in data:
-            for key, value in record.items():
-                self.indexes[index_name].append((key, value, record))
-        print(f"Индекс '{index_name}' успешно создан.")
+        if index_name in self.indices:
+            raise ValueError(f"Индекс '{index_name}' уже существует.")
+        processed_data = process_data(data)
+        self.indices[index_name] = processed_data
+
+    def get_index(self, index_name: str) -> List[Dict]:
+        """
+        Возвращает данные индекса по имени.
+        """
+        if index_name not in self.indices:
+            raise ValueError(f"Индекс '{index_name}' не найден.")
+        return self.indices[index_name]
 
 
-def search(query: str, index_name: str, filters: Dict = None) -> List[Dict]:
+def process_data(data: List[Dict]) -> List[Dict]:
     """
-    Выполняет поиск по заданному индексу.
-
-    :param query: Поисковый запрос.
-    :param index_name: Имя индекса.
-    :param filters: Дополнительные фильтры для поиска.
-    :return: Список найденных записей.
+    Обрабатывает данные перед индексацией.
     """
-    if index_name not in index_storage.indexes:
-        raise ValueError(f"Индекс '{index_name}' не найден.")
+    processed_data = []
+    for item in data:
+        if "text" in item:
+            processed_text = item["text"].strip().lower()
+            processed_data.append({"id": item["id"], "text": processed_text})
+    return processed_data
 
+
+def search(query: str, index_name: str, index_storage: IndexStorage, filters: Dict = None) -> List[Dict]:
+    """
+    Выполняет поиск по индексу.
+    """
+    index = index_storage.get_index(index_name)
     results = []
-    for key, value, record in index_storage.indexes[index_name]:
-        if query in str(value):
+
+    for item in index:
+        if query.lower() in item["text"]:
             if filters:
-                # Проверяем, соответствует ли запись фильтрам
-                if all(record.get(f_key) == f_value for f_key, f_value in filters.items()):
-                    results.append(record)
+                match = all(item.get(key) == value for key, value in filters.items())
+                if match:
+                    results.append(item)
             else:
-                results.append(record)
+                results.append(item)
     return results
-
-
-# Создаем экземпляр хранилища индексов
-index_storage = IndexStorage()
-
-# Пример данных
-sample_data = [
-    {"id": 1, "title": "Python programming", "category": "books"},
-    {"id": 2, "title": "Machine learning basics", "category": "books"},
-    {"id": 3, "title": "Advanced Python", "category": "tutorials"}
-]
-
-# Шаг 1: Обработка данных
-normalized_data = process_data("data/sample.json")  # Пример пути к данным
-
-# Шаг 2: Создание индекса
-index_storage.create_index(normalized_data, "sample_index")
-
-# Шаг 3: Поиск
-results = search("python", "sample_index", {"category": "books"})
-print("Результаты поиска:", results)
