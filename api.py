@@ -1,49 +1,27 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict, Optional
+from library import IndexStorage, search
 
-# Импортируем ранее созданные модули
-from library import process_data, IndexStorage, search
-
-# Инициализация приложения и хранилища индексов
 app = FastAPI()
 index_storage = IndexStorage()
 
-# Модель для входных данных
-class IndexRequest(BaseModel):
-    index_name: str
-    data: List[Dict]
-
-class SearchRequest(BaseModel):
-    query: str
-    index_name: str
-    filters: Optional[Dict] = None
-
 @app.post("/create_index/")
-def create_index(request: IndexRequest):
+def create_index(index_name: str, data: list):
     """
-    Создает индекс из предоставленных данных.
+    Создает новый индекс.
     """
     try:
-        index_storage.create_index(request.data, request.index_name)
-        return {"message": f"Индекс '{request.index_name}' успешно создан."}
+        index_storage.create_index(data, index_name)
+        return {"message": f"Индекс '{index_name}' успешно создан."}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/search/")
-def search_index(request: SearchRequest):
+@app.get("/search/")
+def search_index(query: str, index_name: str):
     """
-    Выполняет поиск по заданному индексу.
+    Выполняет поиск по индексу.
     """
     try:
-        results = search(request.query, request.index_name, request.filters)
+        results = search(query, index_name, index_storage)
         return {"results": results}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-@app.get("/")
-def read_root():
-    """
-    Тестовый маршрут.
-    """
-    return {"message": "API для библиотеки полнотекстового поиска готово к работе!"}
+        raise HTTPException(status_code=400, detail=str(e))
